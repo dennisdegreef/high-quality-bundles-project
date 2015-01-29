@@ -7,9 +7,11 @@ use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Template;
 use Symfony\Component\HttpFoundation\Request;
+use Traditional\Bundle\UserBundle\Command\RegisterUser;
 use Traditional\Bundle\UserBundle\Entity\PhoneNumber;
 use Traditional\Bundle\UserBundle\Entity\User;
 use Traditional\Bundle\UserBundle\Form\CreateUserType;
+use Symfony\Component\Validator\Constraints as Assert;
 
 /**
  * @Route("/user")
@@ -40,28 +42,27 @@ class UserController extends Controller
      */
     public function createAction(Request $request)
     {
-        $user = new User();
+        //$user = new User();
 
-        $form = $this->createForm(new CreateUserType(), $user);
+        $form = $this->createForm(new CreateUserType());
 
         $form->handleRequest($request);
 
         if ($form->isValid()) {
-            $defaultPhoneNumber = new PhoneNumber();
-            $defaultPhoneNumber->setCountryCode('0031');
-            $defaultPhoneNumber->setAreaCode('030');
-            $defaultPhoneNumber->setLineNumber('1234567');
-            $user->addPhoneNumber($defaultPhoneNumber);
 
-            $em = $this->getDoctrine()->getManager();
-            $em->persist($user);
-            $em->flush();
+            /** @var RegisterUser $command */
+            $command = $form->getData();
 
-            $message = \Swift_Message::newInstance('Welcome', 'Yes, welcome');
-            $message->setTo($user->getEmail());
-            //$this->get('mailer')->send($message);
+            try {
+                $this->get('command_bus')->handle($command);
+            } catch(\Exception $e) {
+                echo '<pre>';
+                print_r($e);
+            }
 
-            return $this->redirect($this->generateUrl('traditional_user_list'));
+            return $this->redirect($this->generateUrl('traditional_user_list', [
+                'id' => $command->getId(),
+            ]));
         }
 
         return array(

@@ -2,15 +2,22 @@
 
 namespace Traditional\Bundle\UserBundle\Entity;
 
+use Assert\Assertion;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Mapping as ORM;
+use SimpleBus\Message\Recorder\ContainsRecordedMessages;
+use SimpleBus\Message\Recorder\PrivateMessageRecorderCapabilities;
+use Symfony\Component\Intl\Intl;
+use Traditional\Bundle\UserBundle\Event\UserRegistered;
 
 /**
- * @ORM\Entity
+ * @ORM\Entity(repositoryClass="Traditional\Bundle\UserBundle\Entity\DoctrineUserRepository")
  * @ORM\Table(name="traditional_user")
  */
-class User
+class User implements ContainsRecordedMessages
 {
+    use PrivateMessageRecorderCapabilities;
+
     /**
      * @ORM\Id
      * @ORM\Column(type="integer")
@@ -19,7 +26,7 @@ class User
     private $id;
 
     /**
-     * @ORM\Column(type="string", length=255)
+     * @ORM\Column(type="email_address")
      */
     private $email;
 
@@ -38,9 +45,23 @@ class User
      */
     private $phoneNumbers;
 
-    public function __construct()
+    private function __construct($id, EmailAddress $email, $password, $country)
     {
+        $this->setId($id);
+        $this->setEmail($email);
+        $this->setPassword($password);
+        $this->setCountry($country);
         $this->phoneNumbers = new ArrayCollection();
+    }
+
+    public static function register($id, EmailAddress $email, $password, $country)
+    {
+        $user = new self($id, $email, $password, $country);
+
+        $event = new UserRegistered($user);
+        $user->record($event);
+
+        return $user;
     }
 
     public function getId()
@@ -53,12 +74,18 @@ class User
         $this->id = $id;
     }
 
+    /**
+     * @return EmailAddress $emailAddress
+     */
     public function getEmail()
     {
         return $this->email;
     }
 
-    public function setEmail($email)
+    /**
+     * @param EmailAddress $email
+     */
+    private function setEmail(EmailAddress $email)
     {
         $this->email = $email;
     }
@@ -68,8 +95,10 @@ class User
         return $this->password;
     }
 
-    public function setPassword($password)
+    private function setPassword($password)
     {
+        Assertion::minLength($password, 6);
+
         $this->password = $password;
     }
 
@@ -78,8 +107,10 @@ class User
         return $this->country;
     }
 
-    public function setCountry($country)
+    private function setCountry($country)
     {
+        Assertion::notNull(Intl::getRegionBundle()->getCountryName($country), "Invalid country");
+
         $this->country = $country;
     }
 
